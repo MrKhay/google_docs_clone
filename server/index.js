@@ -2,19 +2,17 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const authRouter = require("./routes/auth");
+const documentRouter = require("./routes/document");
+
 
 const PORT = process.env.PORT | 3001;
-
 const app = express();
 
 // for cross platform application
 app.use(cors());
-
-// specify data coming is in json
-app.use(express.json())
-
-// middle ware
+app.use(express.json());
 app.use(authRouter);
+app.use(documentRouter)
 
 // mogo credentials
 const DB = "mongodb+srv://Khay:GO083cuWwTO8vd7w@cluster0.qbnpndo.mongodb.net/?retryWrites=true&w=majority"

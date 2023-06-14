@@ -4,7 +4,6 @@ class LocalStorageRepository {
   void setToken(String token) async {
     SharedPreferences preferences = await SharedPreferences.getInstance();
     preferences.setString('x-auth-token', token);
-    print("Called save");
   }
 
   Future<String?> getToken() async {

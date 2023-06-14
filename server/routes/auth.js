@@ -17,7 +17,7 @@ authRouter.post("/api/signup",async (req,res)=>{
        if(!user){
         user = new User({
           email,
-          profilePic,
+          profilePic, 
           name,
        });
         user = await user.save();

@@ -33,7 +33,6 @@ class AuthRepository {
         _localStorageRepository = localStorageRepository;
 
   Future<ErrorModel> signInWithGoogle() async {
-
     ErrorModel error =
         ErrorModel(error: 'Some unexpected error occured.', data: null);
 
@@ -49,7 +48,7 @@ class AuthRepository {
           token: ' ',
         );
 
-        var res = await _client.post(
+        Response res = await _client.post(
           Uri.parse('$host/api/signup'),
           body: userAcc.toJson(),
           headers: {
@@ -111,5 +110,10 @@ class AuthRepository {
     }
 
     return error;
+  }
+
+  void signOut() async {
+    await _googleSignIn.signOut();
+    _localStorageRepository.setToken('');
   }
 }
