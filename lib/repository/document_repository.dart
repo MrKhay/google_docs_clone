@@ -89,4 +89,74 @@ class DocumentRepository {
 
     return error;
   }
+
+  Future<ErrorModel> updateDocumentTitle(
+      {required String token,
+      required String id,
+      required String title}) async {
+    ErrorModel error =
+        ErrorModel(error: 'Some unexpected error occured.', data: null);
+
+    try {
+      var res = await _client.post(
+          Uri.parse(
+            '$host/doc/title',
+          ),
+          headers: {
+            'Content-Type': 'application/json; charset=UTF-8',
+            'x-auth-token': token,
+          },
+          body: jsonEncode(
+            {
+              'title': title,
+              'id': id,
+            },
+          ));
+
+      switch (res.statusCode) {
+        case 200:
+          error = ErrorModel(error: null, data: '');
+          break;
+        default:
+          error = ErrorModel(error: res.body, data: null);
+      }
+    } catch (e) {
+      error = ErrorModel(error: e.toString(), data: null);
+    }
+
+    return error;
+  }
+
+  Future<ErrorModel> getDocumentById(String token, String id) async {
+    ErrorModel error =
+        ErrorModel(error: 'Some unexpected error occured.', data: null);
+
+    try {
+      Response res = await _client.get(
+        Uri.parse('$host/doc/$id'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          'x-auth-token': token,
+        },
+      );
+
+      switch (res.statusCode) {
+        case 200:
+          error = ErrorModel(
+            error: null,
+            data: DocumentModel.fromJson(res.body),
+          );
+          break;
+        default:
+          throw 'Document does not exsits';
+      }
+    } catch (e) {
+      error = ErrorModel(
+        error: e.toString(),
+        data: null,
+      );
+    }
+
+    return error;
+  }
 }
