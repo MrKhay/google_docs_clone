@@ -1,11 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_docs_clone/colors.dart';
+import 'package:google_docs_clone/common/loader.dart';
 import 'package:google_docs_clone/models/document_model.dart';
 import 'package:google_docs_clone/models/error_model.dart';
 import 'package:google_docs_clone/repository/auth_repository.dart';
 import 'package:google_docs_clone/repository/document_repository.dart';
+import 'package:google_docs_clone/repository/socket_repository.dart';
+import 'package:routemaster/routemaster.dart';
 
 class DocumentScreen extends ConsumerStatefulWidget {
   final String id;
@@ -21,13 +27,14 @@ class DocumentScreen extends ConsumerStatefulWidget {
 class _DocumentScreenState extends ConsumerState<DocumentScreen> {
   TextEditingController titleController =
       TextEditingController(text: 'UntitledDocument');
-  final quill.QuillController quillController = quill.QuillController.basic();
+  quill.QuillController? quillController;
   ErrorModel? errorModel;
+  SocketRepository socketRepository = SocketRepository();
+
   @override
   void dispose() {
     super.dispose();
     titleController.dispose();
-    quillController.dispose(); 
   }
 
   @override
@@ -35,6 +42,37 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
     super.initState();
 
     fetchDocumentData();
+    socketRepository.joinRoom(widget.id);
+
+    socketRepository.changeListener((data) {
+      quillController?.compose(
+        quill.Delta.fromJson(data['delta']),
+        quillController?.selection ?? const TextSelection.collapsed(offset: 0),
+        quill.ChangeSource.REMOTE,
+      );
+    });
+
+// update document title
+    socketRepository.updatedDocumentTitle((data) {
+      try {
+        var value = data['title'];
+
+        titleController.text = value;
+
+        // titleController.text = value;
+        // print('Data: ${titleController.text}');
+      } catch (e) {
+        print("Error: $e");
+      }
+    });
+
+// auto saves every 2 seconds
+    Timer.periodic(const Duration(seconds: 2), (timer) {
+      socketRepository.autoSave(<String, dynamic>{
+        'delta': quillController!.document.toDelta(),
+        'room': widget.id,
+      });
+    });
   }
 
   void fetchDocumentData() async {
@@ -44,8 +82,28 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
 
     if (errorModel!.data != null) {
       titleController.text = (errorModel!.data as DocumentModel).title;
+
+      quillController = quill.QuillController(
+        document: errorModel!.data.content.isEmpty
+            ? quill.Document()
+            : quill.Document.fromDelta(
+                quill.Delta.fromJson(errorModel!.data.content),
+              ),
+        selection: const TextSelection.collapsed(offset: 0),
+      );
+
       setState(() {});
     }
+
+    quillController!.document.changes.listen((event) {
+      if (event.source == quill.ChangeSource.LOCAL) {
+        Map<String, dynamic> map = {
+          'delta': event.change,
+          'room': widget.id,
+        };
+        socketRepository.typing(map);
+      }
+    });
   }
 
   void updateTitle(WidgetRef ref, String title) async {
@@ -64,7 +122,10 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final screenHeight = MediaQuery.of(context).size.height;
+    if (quillController == null) {
+      return const Scaffold(body: Loader());
+    }
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: kWhiteColor,
@@ -73,7 +134,17 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
           Padding(
             padding: const EdgeInsets.all(10.0),
             child: ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () {
+                Clipboard.setData(ClipboardData(
+                        text: 'http://localhost:3000/#/document/${widget.id}'))
+                    .then((value) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Linked copied!'),
+                    ),
+                  );
+                });
+              },
               icon: const Icon(Icons.lock, size: 16),
               label: const Text('Share'),
               style: ElevatedButton.styleFrom(
@@ -86,13 +157,24 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
           padding: const EdgeInsets.symmetric(vertical: 9),
           child: Row(
             children: [
-              Image.asset('assets/images/docs-logo.png', height: 40),
+              GestureDetector(
+                  onTap: () {
+                    Routemaster.of(context).replace('/');
+                  },
+                  child:
+                      Image.asset('assets/images/docs-logo.png', height: 40)),
               const SizedBox(width: 10),
               SizedBox(
                   width: 180,
                   child: TextField(
                     controller: titleController,
                     onSubmitted: (value) => updateTitle(ref, value),
+                    onChanged: (data) {
+                      socketRepository.updatingTitle(<String, dynamic>{
+                        'room': widget.id,
+                        'title': data,
+                      });
+                    },
                     decoration: const InputDecoration(
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.only(left: 10),
@@ -114,7 +196,7 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          quill.QuillToolbar.basic(controller: quillController),
+          quill.QuillToolbar.basic(controller: quillController!),
           const SizedBox(height: 20),
           Expanded(
             child: SizedBox(
@@ -125,7 +207,7 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(30.0),
                     child: quill.QuillEditor.basic(
-                      controller: quillController,
+                      controller: quillController!,
                       readOnly: false,
                     ),
                   ),
