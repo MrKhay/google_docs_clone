@@ -11,6 +11,7 @@ import 'package:google_docs_clone/models/error_model.dart';
 import 'package:google_docs_clone/repository/auth_repository.dart';
 import 'package:google_docs_clone/repository/document_repository.dart';
 import 'package:google_docs_clone/repository/socket_repository.dart';
+import 'package:google_docs_clone/utility/utility.dart';
 import 'package:routemaster/routemaster.dart';
 
 class DocumentScreen extends ConsumerStatefulWidget {
@@ -35,6 +36,11 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
   void dispose() {
     super.dispose();
     titleController.dispose();
+
+    // leaving room
+    socketRepository.existingRoom(<String, dynamic>{
+      'room': widget.id,
+    });
   }
 
   @override
@@ -45,24 +51,27 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
     socketRepository.joinRoom(widget.id);
 
     socketRepository.changeListener((data) {
-      quillController?.compose(
-        quill.Delta.fromJson(data['delta']),
-        quillController?.selection ?? const TextSelection.collapsed(offset: 0),
-        quill.ChangeSource.REMOTE,
-      );
+      try {
+        quillController?.compose(
+          quill.Delta.fromJson(data['delta']),
+          quillController?.selection ??
+              const TextSelection.collapsed(offset: 0),
+          quill.ChangeSource.REMOTE,
+        );
+
+        quillController?.moveCursorToEnd();
+      } catch (e) {
+        e.logError();
+      }
     });
 
 // update document title
     socketRepository.updatedDocumentTitle((data) {
       try {
         var value = data['title'];
-
         titleController.text = value;
-
-        // titleController.text = value;
-        // print('Data: ${titleController.text}');
       } catch (e) {
-        print("Error: $e");
+        e.logError();
       }
     });
 
@@ -125,7 +134,7 @@ class _DocumentScreenState extends ConsumerState<DocumentScreen> {
     if (quillController == null) {
       return const Scaffold(body: Loader());
     }
-
+    quillController?.moveCursorToEnd();
     return Scaffold(
       appBar: AppBar(
         backgroundColor: kWhiteColor,

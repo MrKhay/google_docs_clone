@@ -1,3 +1,9 @@
-# google_docs_clone
+# Google Docs Clone
 
-A new Flutter project.
+
+#
+
+## Stack
+##### 🔘 Frontend - Flutter   
+##### 🔘 Backend - Node js
+
